@@ -1,0 +1,100 @@
+---
+title: "Predicting Human Activity"
+author: "Davide"
+date: "Saturday, August 23, 2014"
+output: html_document
+---
+
+# Introduction
+This project has been written for the fullfillment of the requiremnts of the Johns Hopkins Bloomberg School of Public Health's *Practical Machine Learning* course.
+
+  This project will build a prediction system for recognition of human activity based on selected measurements from a number of wearable sensors. The dataset at hand was collectected to try to recognized not the specific activity that was performed. As a matter of fact all observations refer to the same movement: a set of ten repetitions of the "Unilateral Dumbbel Biceps Curl" exercise (see: https://www.youtube.com/watch?v=YxtwA7XRK_g for an example).
+
+The specificy of the data is that the same exercise is performed in 6 different *classes*:
+* A: correclty, i.e. exacly according to the specifications;
+* B: throwing the elbows to the front;
+* C: lifting the dumbbel only halfway;
+* D: lowering the dumbbell only halfway;
+* E: throwing the hips to the front.
+
+Only A is the correct way to perform the exercise. Purpose of the recognition system is to process the data to tell if the trainee is performing the exercise correctly or is doing some mistakes. Once the appropriate classes A, B, ..., E is discriminated, the system could provide appropriate feedback. The data contains features that come strainght from sensors measurements, and *derived* features as well, that are computes from others: total, kurtosis, skewness, means, ... More information on the data gathering and pre-processing  oeprations can be found in parts 3 and 4 of [2], 
+
+# Exploratory Data Analysis
+```{r}
+rm(list =ls())
+setwd('C:/Nuova cartella/Practical Machine Learning/Assignment')
+
+```
+
+```{r}
+data_train_file = read.table('pml-training.csv', header = TRUE, sep = ',', na.string = 'NA')
+str(data_train_file)
+head(data_train_file)
+```
+
+The training data consists of `r dim(data_train_file)[1]` observations of `r dim(data_train_file)[2]` variables. The distribution of classes in the data is as follows:
+```{r}
+class_dist_train <- table(data_train_file$classe)
+class_dist_train
+range_numofsamples <- range(class_dist_train)
+range_numofsamples[1] <- 0
+range_numofsamples
+barplot(class_dist_train, ylab = 'Num. of Samples', main = 'Distribution of Classes\nTraining Data')
+```
+
+Looking at the data we notice as there are several cells in the table that contain the value: `#DIV/0!`: `r (sum(data_train_file == '#DIV/0!', na.rm = TRUE)). This for sure comes from computed features in cases where the specific value could not be computed. These values are, from all respects, just like `NAs` for the following analysis. So no information is lost when I set the to `NA`:
+```{r}
+data_train_file[data_train_file == '#DIV/0!'] = NA
+sum(data_train_file == '#DIV/0!', na.rm = TRUE) # Consistency check: should be zero
+```
+
+It looks to me clear that timestamp-like features or num. of observation, or user name should have *nothing* to do with predictions, so I remove then from the dataset:
+```{r}
+drop <- c('X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window')
+data_train_file <- data_train_file[, !(names(data_train_file) %in% drop)]
+```
+
+Now let's rebuild the data frame taking the original dataframe and converting all values to `numeric` (apart from the target variable):
+```{r}
+data_train_file = data.frame(lapply(data_train_file[ ,-153], function(x) as.numeric(x)), classe = data_train_file[ ,153])
+```
+
+... and remove any column that has `NA`s "values":
+```{r}
+index = sapply(data_train_file, function(x) !any(is.na(x)))
+names(index) = NULL
+data_train_file = data_train_file[ ,index]
+```
+
+
+```{r}
+require('caret')
+library(caret)
+```
+
+Since we are starting to perform operations that depend on the outcome or random variables, le'ts set the seed in order to ensure reproducibility:
+```{r}
+set.seed(1234)
+```
+
+Now let's divide the trainint dataset into two parts, an actual *training* set an d a *cross validation* set. The latter will be uses to asses (estimate) the out-of-sample error using the prediction error on the cv set.
+```{r}
+training_obs_index = createDataPartition(y = data_train_file$classe, p = 0.6, list = FALSE)
+data_train = data_train_file[training_obs_index,]
+data_cross = data_train_file[-training_obs_index,]
+```
+
+We have `r dim(data_train)[1]` observations in the training set and `r dim(data_cross)[1]` obervations in the cross validation set.
+
+Let's build the prediction model (beware this takes a long time):
+```{r}
+model.rf = train(classe ~ ., data = data_train, method = 'rf')
+```
+
+# Further study
+It is interesting to note that some of the features come from processing of other features and values of some of the former make sense only once per samplig period. this is cearly noted in the dataset usgin the columns `new_window` and `num_window`. I'll see how the predictors behave with these null values, but it would be intersting to estract these variables and relative observations into another dataset, build a predicto on then only and *ensemble*-it with the predictor on the remaining observations/features. This will be loeft as a further study.
+
+# References
+[1] **Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H.** *Qualitative Activity Recognition of Weight Lifting Exercises.* Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013, (http://groupware.les.inf.puc-rio.br/har#wle_paper_section#ixzz3BDpfkmR8)
+
+[2] **Wallace Ugulino1, Débora Cardador1, Katia Vega1, Eduardo Velloso2, Ruy Milidiú1, and Hugo Fuks1** *Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements* SBIA 2012, LNAI 7589, pp. 52-61, 2012.
