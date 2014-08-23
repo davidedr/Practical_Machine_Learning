@@ -13,18 +13,19 @@ output:
 Have look at: https://www.youtube.com/watch?v=fJMXDlNkYvU
 
 # Introduction
-This project has been written for the fullfillment of the requiremnts of the Johns Hopkins Bloomberg School of Public Health's *Practical Machine Learning* course.
+This project has been written for the fulfillment of the requiremnts of the *Johns Hopkins Bloomberg School of Public Health's Practical Machine Learning* course.
 
-This project will build a prediction system for recognition of human activity based on selected measurements from a number of wearable sensors. The dataset at hand was collectected to try to recognized not the specific activity that was performed. As a matter of fact all observations refer to the same movement: a set of ten repetitions of the "Unilateral Dumbbel Biceps Curl" exercise (see: https://www.youtube.com/watch?v=YxtwA7XRK_g for an example).
+This project will build a prediction system for recognition of human activity based on selected measurements from a number of wearable sensors. The dataset at hand was collectected to try to recognize not the specific activity that was performed. As a matter of fact all observations refer to the same movement: a set of ten repetitions of the "Unilateral Dumbbel Biceps Curl" exercise (see: https://www.youtube.com/watch?v=YxtwA7XRK_g for an example).
 
-The specificy of the data is that the same exercise is performed in 6 different *classes*:
-* A: correclty, i.e. exacly according to the specifications;
-* B: throwing the elbows to the front;
-* C: lifting the dumbbel only halfway;
-* D: lowering the dumbbell only halfway;
-* E: throwing the hips to the front.
+The specificy of the data is that the same exercise is performed in 6 different ways (*classes*):
 
-Only A is the correct way to perform the exercise. Purpose of the recognition system is to process the data to tell if the trainee is performing the exercise correctly or is doing some mistakes. Once the appropriate classes A, B, ..., E is discriminated, the system could provide appropriate feedback. The data contains features that come strainght from sensors measurements, and *derived* features as well, that are computes from others: total, kurtosis, skewness, means, ... More information on the data gathering and pre-processing  oeprations can be found in parts 3 and 4 of [2], 
+- A: correclty, i.e. exacly according to the specifications;
+- B: throwing the elbows to the front;
+- C: lifting the dumbbel only halfway;
+- D: lowering the dumbbell only halfway;
+- E: throwing the hips to the front.
+
+Only A is the correct way to perform the exercise. Purpose of the recognition system is to process the data to tell if the trainee is performing the exercise correctly or is doing some mistakes. Once the appropriate classes A, B, ..., E is discriminated, the system could provide appropriate feedback. The data contains features that come strainght from sensors measurements, and *derived* features as well, that are computes from others: total, kurtosis, skewness, means, ... More information on the data gathering and pre-processing  oeprations can be found in parts 3 and 4 of [2].
 
 # Exploratory Data Analysis
 ```{r rm_setwd}
@@ -33,18 +34,28 @@ setwd('C:/Nuova cartella/Practical Machine Learning/Assignment')
 ```
 
 ```{r}
+fileUrl_train = 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv'
+destfile = 'pml-training.csv'
+if (!file.exists(destfile)) {
+  download.file(fileUrl_train, destfile = destfile)
+}
+
+fileUrl_test = 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv'
+destfile = 'pml-testing.csv'
+if (!file.exists(destfile)) {
+  download.file(fileUrl_test, destfile = destfile)
+}
+```
+
+```{r}
 data_train_file = read.table('pml-training.csv', header = TRUE, sep = ',', na.string = 'NA')
 str(data_train_file)
-head(data_train_file)
 ```
 
 The training data consists of `r dim(data_train_file)[1]` observations of `r dim(data_train_file)[2]` variables. The distribution of classes in the data is as follows:
 ```{r}
 class_dist_train <- table(data_train_file$classe)
 class_dist_train
-range_numofsamples <- range(class_dist_train)
-range_numofsamples[1] <- 0
-range_numofsamples
 barplot(class_dist_train, ylab = 'Num. of Samples', main = 'Distribution of Classes\nTraining Data')
 ```
 
@@ -54,13 +65,13 @@ data_train_file[data_train_file == '#DIV/0!'] = NA
 sum(data_train_file == '#DIV/0!', na.rm = TRUE) # Consistency check: should be zero
 ```
 
-It looks to me clear that timestamp-like features or num. of observation, or user name should have *nothing* to do with predictions, so I remove then from the dataset:
+It looks to me clear that timestamp-like features, num. of observation, or user name should have *nothing* to do with predictions, so I remove then from the dataset:
 ```{r}
 drop <- c('X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window')
 data_train_file <- data_train_file[, !(names(data_train_file) %in% drop)]
 ```
 
-Now let's rebuild the data frame taking the original dataframe and converting all values to `numeric` (apart from the target variable, stored in th 153-rd columns of the dataframe):
+Now let's rebuild the data frame taking the original dataframe and converting all values to `numeric` (apart from the target variable, stored in th 153-rd columns):
 ```{r}
 data_train_file = data.frame(lapply(data_train_file[ , -153], function(x) as.numeric(x)), classe = data_train_file[ , 153])
 ```
@@ -77,12 +88,13 @@ require('caret')
 library(caret)
 ```
 
+# Building the Predictor
 Since we are starting to perform operations that depend on the outcome or (pseudo)random variables, let's set the seed in order to ensure reproducibility:
 ```{r set.seed}
 set.seed(1234)
 ```
 
-Now let's divide the trainint dataset into two parts, an actual *training* set an d a *cross validation* set. The latter will be uses to asses (estimate) the out-of-sample error using the prediction error on the cv set.
+Now let's divide the trainint dataset into two parts, an actual *training* set (60% of data)  and a *cross validation* set (40%). The latter will be used to asses (estimate) the out-of-sample error using the prediction error on the corss validation dataset.
 ```{r}
 training_obs_index = createDataPartition(y = data_train_file$classe, p = 0.6, list = FALSE)
 data_train = data_train_file[training_obs_index,]
@@ -91,7 +103,7 @@ data_cross = data_train_file[-training_obs_index,]
 
 We have `r dim(data_train)[1]` observations in the training set and `r dim(data_cross)[1]` obervations in the cross validation set.
 
-Let's build the prediction model (beware this takes a long time):
+Let's build the prediction model (beware: this takes a **long** time; this is why I  have computed it *only once and then saved it on a file*. This way I can work on the markdown without computing it every time I compile the markdown, simply reading it from disk):
 ```{r predict_savo_or_load}
 #model.rf = train(classe ~ ., data = data_train, method = 'rf')
 #save(model.rf, file = 'model.rf') # Save it in order not to waste computation time!
@@ -103,27 +115,38 @@ model.rf
 In this section we're going to assess the performance of the fitted model.
 
 ## In-sample
-Here's the in-sample confusion matrix of the fitted model. Looks to work pretty well on the training set, keeping the in-sample classification error lower than 1.8%:
+Here's the in-sample confusion matrix of the fitted model. Looks like it works pretty well on the training set, keeping the in-sample classification error lower than 1.8%:
 ```{r}
-model.rf$finalModel
+model.rf$finalModel$confusion
 ```
 
-Another assessment of the accuracy of the predictor vs the numer of variables can be computes by *bootstrap*:
+You can also check this out:
+```{r}
+predict_train <- predict(model.rf)
+confusionMatrix(predict_train, data_train$classe)
+```
+
+Another assessment of the accuracy of the predictor vs the numer of variables can be computed using the *bootstrap* technique:
 ```{r}
 plot(model.rf, main = 'Accuracy of the Model')
 ```
 
 ## Cross- validation
-Let's check the model on th cross validation set:
-```{r}
+Let's check the model on the cross validation set:
+```{r echo = FALSE}
 predict_cv <- predict(model.rf, newdata = data_cross)
 table(predict_cv, data_cross$classe)
 ```
 
-We have an error of **`r mean(predict_cv == data_cross$classe)' %**.
+We have an error of `r (1-mean(predict_cv == data_cross$classe))*100`%, so less that 1% (accuracy > 99%). This can be used as an estimate of the *out-of-sample* error.
+This *by-hand* computation is confirmed:
+```{r}
+confusionMatrix(predict_cv, data_cross$classe)
+```
+
 
 ## Out-of-sample
-To work on the test set, we need to perform on it oall the proccessing and clean-up we did on the training data set: 
+To work on the test set, we need to perform on it all the proccessing and clean-up we did on the training data set: 
 ```{r}
 rm(data_test_file)
 data_test_file = read.table('pml-testing.csv', header = TRUE, sep = ',', na.string = 'NA')
@@ -141,19 +164,19 @@ Now we're ready to apply the predictor on the data:
 predict(model.rf, newdata = data_test_file)
 ```
 
-Turns out that if you submit these results in the "Prediction Assignment Submission" page of the course, these are the right values. This allows us to say that this predictor has 100% out-of-sample accuracy.
+Turns out that if you submit these results in the "Prediction Assignment Submission" page of the course, these are the *right* values. This allows us to say that this predictor has **100%** estimated out-of-sample accuracy.
 
 # Further study
-It is interesting to note that some of the features come from processing of other features and values of some of the former make sense only once per samplig period. this is clearly noted in the dataset looking at the `new_window` and `num_window` columns . See, for example, values of `kurtosis_roll_bell` feature. Unfortunatley, the procedure I used excluded these variables, just due to the fact that most of their cells are empty. But we cannot say for sure that they do no contain valuable information. But, on the other hand these were thrown, otherwise the train function would have `complained`.
+It is interesting to note that some of the features come from processing of other features and values of some of the former make sense only once per samplig period. This is clearly noted in the dataset looking at the `new_window` and `num_window` columns . See, for example, values of `kurtosis_roll_bell` feature. Unfortunatley, the procedure I used excluded these variables, just due to the fact that most of their cells are empty. But we cannot say for sure that they do no contain valuable information. On the other hand these had to be thrown, otherwise the train function would have *complained*.
 
 How to deal with this fact?
-One possible strategy would be to pull these rows and columns out of the dataset to form another dataset. This would have all cells filled with precoius data. Then model a preditor based on the former, cleaned dataset and another based on thelatter dataset. Lastly, combine these two predicotrs into one to form an *ensemble* predictor.
+One possible strategy would be to pull these rows and columns out of the dataset to form another dataset. This would have all cells filled with precious data. Then model a predictor based on the former, cleaned dataset and another based on the latter dataset. Lastly, combine these two predictors into one to form an *ensemble* predictor. This is left as a further study.
 
-This is left as a further study.
+Moreover, maybe we can lower the number of features we use to train the predictor. This can be done via a PCA analysis to see if there are some variabiles that can be discarded because they give little contribution to the overall variance of the data. This is left as a further study as weel.
 
 # Conclusions
 
-In this study we modeled a predictor for the class of activity a trainee is performing. Data come from a set of a sensors she wears during the exercise. The task at hand is to tell if an exercise is well performed, according to some standard, from one that is performed with mistakes. After a pre-processing phase to clean up and prepare the data, We trained a random forest predictor that shows very good performance. Despite the good results we got, some spae for improvements will likely lie out there, since we discarded some features. A guideline for further analysis al therefore drawn.
+In this study we modeled a predictor for the class of activity a trainee is performing. Data come from a set of a sensors she wears during the exercise. The task at hand is to tell if an exercise is well performed, according to some standard, from one that is performed with mistakes. After a pre-processing phase to clean up and prepare the data, we trained a random forest predictor that shows very good performance. Despite the good results we got, some space for improvements will likely lie out there, since we discarded some features. A guideline for further analysis is therefore drawn.
 
 # References
 
