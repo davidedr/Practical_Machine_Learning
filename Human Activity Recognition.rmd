@@ -83,6 +83,8 @@ names(index) = NULL
 data_train_file = data_train_file[ ,index]
 ```
 
+It should be noted that the previous operation removed a lot columns: now we have `r dim(data_train_file)[2]` columns only. Unfortunatley, this was a *needed* operation, since the caret's package `train` function does not deal weel with `NA`s. Nonetheless, apart from the `NA`s, the removed columns could contain relevant information. In the *Further study* section I will explore some methods to retain this information (essentially using an esemble predictor).
+
 ```{r}
 require('caret')
 library(caret)

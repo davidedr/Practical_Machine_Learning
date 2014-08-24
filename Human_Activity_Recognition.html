@@ -232,6 +232,7 @@ data_train_file &lt;- data_train_file[, !(names(data_train_file) %in% drop)]</co
 <pre class="r"><code>index = sapply(data_train_file, function(x) !any(is.na(x)))
 names(index) = NULL
 data_train_file = data_train_file[ ,index]</code></pre>
+<p>It should be noted that the previous operation removed a lot columns: now we have 53 columns only. Unfortunatley, this was a <em>needed</em> operation, since the caret’s package <code>train</code> function does not deal weel with <code>NA</code>s. Nonetheless, apart from the <code>NA</code>s, the removed columns could contain relevant information. In the <em>Further study</em> section I will explore some methods to retain this information (essentially using an esemble predictor).</p>
 <pre class="r"><code>require('caret')</code></pre>
 <pre><code>## Loading required package: caret</code></pre>
 <pre><code>## Warning: package 'caret' was built under R version 3.0.3</code></pre>
