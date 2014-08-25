@@ -133,9 +133,9 @@ Another assessment of the accuracy of the predictor vs the numer of variables ca
 plot(model.rf, main = 'Accuracy of the Model')
 ```
 
-## Cross- validation
+## Cross-validation
 Let's check the model on the cross validation set:
-```{r echo = FALSE}
+```{r}
 predict_cv <- predict(model.rf, newdata = data_cross)
 table(predict_cv, data_cross$classe)
 ```
