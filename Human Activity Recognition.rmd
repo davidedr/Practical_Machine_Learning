@@ -141,7 +141,7 @@ table(predict_cv, data_cross$classe)
 ```
 
 We have an error of `r (1-mean(predict_cv == data_cross$classe))*100`%, so less that 1% (accuracy > 99%). This can be used as an estimate of the *out-of-sample* error.
-This *by-hand* computation is confirmed:
+This *by-hand* computation is confirmed by:
 ```{r}
 confusionMatrix(predict_cv, data_cross$classe)
 ```
